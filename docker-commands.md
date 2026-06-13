@@ -1,63 +1,59 @@
-# Docker Volumes
+# Docker Networking
 
 ## PART 1 - THE PROBLEM
-- Data is stored inside the container filesystem.
-- When the container is removed, all data is gone forever.
+### Run both containers WITHOUT a custom network and watch them fail to connect.
 
-#### Start MySQL WITHOUT a volume
-```
-docker run \
+Run MySQL on the default network
+  ```
+  docker run \
   --name mysql-db \
   -e MYSQL_ROOT_PASSWORD=password \
   -e MYSQL_DATABASE=library \
   -p 3306:3306 \
-  --network crud-network \
   -d mysql:8
 ```
 
-Load schema and add some books via the API, then... Kill and remove the container.
+### Build the backend image
 ```
-docker rm -f mysql-db
+docker build -t simple-crud-app .
 ```
 
-### Start a fresh MySQL container
+## Run the backend - DB_HOST=mysql-db will fail (name not resolvable)
 ```
 docker run \
-  --name mysql-db \
-  -e MYSQL_ROOT_PASSWORD=password \
-  -e MYSQL_DATABASE=library \
-  -p 3306:3306 \
-  --network crud-network \
-  -d mysql:8
+  --name crud-backend \
+  -e PORT=3000 \
+  -e DB_HOST=mysql-db \
+  -e DB_USER=root \
+  -e DB_PASSWORD=password \
+  -e DB_NAME=library \
+  -p 3000:3000 \
+  -d simple-crud-app
 ```
 
-### Load schema again - all previous data is gone
+### Observe the failure
 ```
-docker exec -i mysql-db mysql -uroot -ppassword library < init.sql
+docker logs crud-backend
 ```
 
 ## PART 2 - THE SOLUTION
-Named volume - data lives on the host, survives container removal.
+### Custom bridge network - containers resolve each other by container name.
 
-#### Clean up
+### Clean up the failed containers first
 ```
-docker rm -f mysql-db crud-backend
-docker network rm crud-network
+docker rm -f crud-backend mysql-db
 ```
-
-#### STEP 1 : Create the network
+#### STEP 1 : Create a custom bridge network
 ```
 docker network create crud-network
 ```
-
-#### STEP 2 : Run MySQL WITH a named volume
+#### STEP 2 : Run MySQL on the custom network
 ```
 docker run \
   --name mysql-db \
   -e MYSQL_ROOT_PASSWORD=password \
   -e MYSQL_DATABASE=library \
   -p 3306:3306 \
-  -v mysql-data:/var/lib/mysql \
   --network crud-network \
   -d mysql:8
 ```
@@ -72,7 +68,7 @@ docker logs -f mysql-db
 docker exec -i mysql-db mysql -uroot -ppassword library < init.sql
 ```
 
-#### STEP 5 : Run the backend
+#### STEP 5 : Run the backend on the same network
 ```
 docker run \
   --name crud-backend \
@@ -86,38 +82,31 @@ docker run \
   -d simple-crud-app
 ```
 
-#### Add some books via the API, then remove mysql-db...
+#### STEP 6 : Verify
 ```
-docker rm -f mysql-db
-```
-
-#### Restart it with the same volume - data is back
-```
-docker run \
-  --name mysql-db \
-  -e MYSQL_ROOT_PASSWORD=password \
-  -e MYSQL_DATABASE=library \
-  -p 3306:3306 \
-  -v mysql-data:/var/lib/mysql \
-  --network crud-network \
-  -d mysql:8
+docker ps
+docker logs crud-backend
 ```
 
-### USEFUL COMMANDS
+## USEFUL COMMANDS
 
-#### List all volumes
+#### List all networks
 ```
-docker volume ls
-```
-
-#### Inspect a volume (see mount point on host)
-```
-docker volume inspect mysql-data
+docker network ls
 ```
 
-#### Remove everything including the volume (deletes all data)
+#### Inspect the network (see which containers are on it)
+```
+docker network inspect crud-network
+```
+
+#### Open a MySQL shell
+```
+docker exec -it mysql-db mysql -uroot -ppassword library
+```
+
+#### Stop and remove everything
 ```
 docker rm -f crud-backend mysql-db
-docker volume rm mysql-data
 docker network rm crud-network
 ```
