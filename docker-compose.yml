@@ -1,0 +1,40 @@
+services:
+
+  # ── MySQL Database ────────────────────────────────────────────────────────────
+  mysql-db:
+    image: mysql:8
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: library
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql   # named volume — data persists
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql  # auto-run on first start
+    networks:
+      - crud-network
+
+  # ── Node.js Backend ───────────────────────────────────────────────────────────
+  backend:
+    build: .
+    ports:
+      - "3000:3000"
+    environment:
+      PORT: 3000
+      DB_HOST: mysql-db
+      DB_USER: root
+      DB_PASSWORD: password
+      DB_NAME: library
+    depends_on:
+      - mysql-db
+    networks:
+      - crud-network
+
+# ── Named Volume ──────────────────────────────────────────────────────────────
+volumes:
+  mysql-data:
+
+# ── Custom Network ────────────────────────────────────────────────────────────
+networks:
+  crud-network:
+    driver: bridge
