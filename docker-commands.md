@@ -65,7 +65,7 @@ docker logs -f mysql-db
 
 #### STEP 4 : Load the schema
 ```
-docker exec -i mysql-db mysql -uroot -ppassword library < init.sql
+docker exec -i mysql-db mysql -u root -ppassword library < init.sql
 ```
 
 #### STEP 5 : Run the backend on the same network
